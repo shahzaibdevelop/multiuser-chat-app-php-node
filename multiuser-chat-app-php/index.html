@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <style>
+        #chatBox { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
+    </style>
+</head>
+<body>
+    <div id="loginForm">
+        <input type="text" id="username" placeholder="Enter username">
+        <button onclick="register()">Login</button>
+    </div>
+    <div id="chatInterface" style="display:none;">
+        <input type="text" id="searchUser" placeholder="Search user">
+        <button onclick="searchUser()">Search</button>
+        <div id="searchResults"></div>
+        <div id="chatBox"></div>
+        <input type="text" id="message" placeholder="Type a message">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+        let ws;
+        let currentRecipient;
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:8080');
+            
+            ws.onopen = function() {
+                console.log('Connected to WebSocket server');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                switch(data.type) {
+                    case 'searchResult':
+                        displaySearchResults(data.result);
+                        break;
+                    case 'message':
+                        displayMessage(data.from, data.content);
+                        break;
+                }
+            };
+        }
+
+        function register() {
+            const username = document.getElementById('username').value;
+            if (username) {
+                connect();
+                ws.onopen = function() {
+                    ws.send(JSON.stringify({type: 'register', username: username}));
+                    document.getElementById('loginForm').style.display = 'none';
+                    document.getElementById('chatInterface').style.display = 'block';
+                };
+            }
+        }
+
+        function searchUser() {
+            const query = document.getElementById('searchUser').value;
+            ws.send(JSON.stringify({type: 'search', query: query}));
+        }
+
+        function displaySearchResults(results) {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '';
+            results.forEach(username => {
+                const userDiv = document.createElement('div');
+                userDiv.textContent = username;
+                userDiv.onclick = function() { startChat(username); };
+                resultsDiv.appendChild(userDiv);
+            });
+        }
+
+        function startChat(username) {
+            currentRecipient = username;
+            document.getElementById('chatBox').innerHTML = '';
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message');
+            const content = messageInput.value;
+            if (content && currentRecipient) {
+                ws.send(JSON.stringify({type: 'message', to: currentRecipient, content: content}));
+                displayMessage('You', content);
+                messageInput.value = '';
+            }
+        }
+
+        function displayMessage(from, content) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = `${from}: ${content}`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
